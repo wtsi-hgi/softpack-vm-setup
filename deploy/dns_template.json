@@ -1,0 +1,8 @@
+{
+    "method": "POST",
+    "object": "record:a",
+    "data": {
+       "name": "##HOST##",
+       "ipv4addr": "##IP##"
+    }
+}

@@ -1,0 +1,17 @@
+[
+    {
+        "method": "GET",
+        "object": "record:a",
+        "data": {
+            "name": "##HOST##"
+        },
+        "assign_state": {
+            "a_ref": "_ref"
+        }
+    },
+    {
+        "method": "DELETE",
+        "object": "##STATE:a_ref:##",
+        "enable_substitution": true
+    }
+]

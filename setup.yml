@@ -1,0 +1,303 @@
+---
+- name: Setup development environment with zsh, oh-my-zsh, and spack
+  hosts: spb
+  become: yes
+
+  vars:
+    github_token: "{{ (lookup('file', '.env') | regex_search('GITHUB_TOKEN=(.*)', '\\1') | first) if (lookup('file', '.env') | regex_search('GITHUB_TOKEN=(.*)', '\\1')) else '' }}"
+    
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install zsh
+      apt:
+        name: zsh
+        state: present
+
+    - name: Check if oh-my-zsh is already installed
+      stat:
+        path: "/home/ubuntu/.oh-my-zsh"
+      register: ohmyzsh_stat
+
+    - name: Download and install oh-my-zsh
+      shell: |
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+      become_user: ubuntu
+      when: not ohmyzsh_stat.stat.exists
+
+    - name: Set zsh as default shell for ubuntu user
+      user:
+        name: ubuntu
+        shell: /usr/bin/zsh
+
+    - name: Check if spack container exists
+      stat:
+        path: "/home/ubuntu/spack.sif"
+      register: spack_container
+
+    - name: Build spack container with singularity
+      command: singularity build spack.sif docker://mercury/softpack-build:0.21.1.2
+      become_user: ubuntu
+      args:
+        chdir: "/home/ubuntu"
+      when: not spack_container.stat.exists
+
+    - name: Add spack configurations to .zshrc
+      blockinfile:
+        path: "/home/ubuntu/.zshrc"
+        block: |
+          
+          # Spack-related configurations
+          alias spack="singularity run --bind /usr/bin/zsh --bind /mnt/data /home/ubuntu/spack.sif"
+          alias i="spack install"
+          alias u="spack uninstall -y --dependents"
+          alias s="spack"
+          alias dir="ls -lah"
+          export DISPLAY=":99"
+          
+          # Spack helper functions
+          create() {
+              local pkg="$1"
+              local replace_pkg="${pkg//-/_}"
+              local src_dir="$HOME/work/spack-packages/repos/spack_repo/builtin/packages/$replace_pkg"
+              local dest_dir="$HOME/spack-repo/packages/$pkg"
+              
+              # Create the package
+              s create --skip-editor "$pkg"
+              
+              # Navigate to the spack directory and pull the latest changes
+              cd "$HOME/work/spack-packages" || return
+              git pull
+              
+              # Ensure the destination directory exists
+              mkdir -p "$dest_dir"
+              
+              # Copy the package.py file and any .patch files
+              cp "$src_dir/package.py" "$dest_dir/"
+              cp "$src_dir/"*.patch "$dest_dir/" 2>/dev/null
+              
+              # Comment out specific depends_on lines in the copied package.py file
+              sed -i 's/depends_on("c", type="build")/# depends_on("c", type="build")/g' "$dest_dir/package.py"
+              sed -i 's/depends_on("cxx", type="build")/# depends_on("cxx", type="build")/g' "$dest_dir/package.py"
+              sed -i 's/depends_on("fortran", type="build")/# depends_on("fortran", type="build")/g' "$dest_dir/package.py"
+              # Remove checked_by from license lines while preserving the final parenthesis
+              sed -i 's/license(\([^)]*\), *checked_by=[^)]*)/license(\1)/g' "$dest_dir/package.py"
+              # Remove lines starting with 'from spack_repo.builtin'
+              sed -i '/^from spack_repo.builtin/d' "$dest_dir/package.py"
+          }
+          
+          del_empty() {
+              for dir in ~/spack-repo/packages/*; do                                                                 
+                  # Check if package.py exists in the directory
+                  if [ ! -e "$dir/package.py" ]; then
+                      rm -rf "$dir"
+                      echo "$dir removed" 
+                  fi
+              done
+          }
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - Spack configurations"
+        create: yes
+      become_user: ubuntu
+
+    - name: Display completion message
+      debug:
+        msg: "Setup completed successfully!"
+
+    # Step 2: Setup spack repositories and configuration
+    - name: Ensure ubuntu home directory ownership
+      file:
+        path: /home/ubuntu
+        owner: ubuntu
+        group: ubuntu
+        recurse: yes
+
+    - name: Configure Git global settings with GitHub token
+      shell: |
+        git config --global credential.helper store
+        echo "https://{{ github_token }}:x-oauth-basic@github.com" > ~/.git-credentials
+      become_user: ubuntu
+      when: github_token != ""
+
+    - name: Set Git global user configuration
+      shell: |
+        git config --global user.name "mercury"
+        git config --global user.email "mercury@sanger.ac.uk"
+      become_user: ubuntu
+      when: github_token != ""
+
+    - name: Create work directory
+      file:
+        path: "/home/ubuntu/work"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Check if spack-packages repository exists
+      stat:
+        path: "/home/ubuntu/work/spack-packages"
+      register: spack_packages_repo
+
+    - name: Clone spack-packages repository
+      git:
+        repo: "https://github.com/spack/spack-packages"
+        dest: "/home/ubuntu/work/spack-packages"
+        version: HEAD
+      become_user: ubuntu
+      when: not spack_packages_repo.stat.exists
+
+    - name: Check if spack-repo repository exists
+      stat:
+        path: "/home/ubuntu/spack-repo"
+      register: spack_repo
+
+    - name: Clone spack-repo repository
+      git:
+        repo: "https://github.com/wtsi-hgi/spack-repo"
+        dest: "/home/ubuntu/spack-repo"
+        version: HEAD
+      become_user: ubuntu
+      when: not spack_repo.stat.exists
+
+    - name: Create .spack directory
+      file:
+        path: "/home/ubuntu/.spack"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Setup spack config.yaml
+      copy:
+        content: |
+          config:
+            install_tree:
+              root: ~/.spack
+            source_cache: ~/.spack/cache
+            template_dirs:
+            - /opt/softpack/templates
+            environments_root: ~/.spack/envs
+        dest: "/home/ubuntu/.spack/config.yaml"
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Setup spack repos.yaml
+      copy:
+        content: |
+          repos:
+          - /home/ubuntu/spack-repo
+        dest: "/home/ubuntu/.spack/repos.yaml"
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Create spack-data directories in /mnt/data
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+      loop:
+        - "/mnt/data/spack-data/linux-ubuntu22.04-skylake_avx512"
+        - "/mnt/data/spack-data/linux-ubuntu22.04-x86_64_v3"
+
+    - name: Create symlinks for spack install directories
+      file:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+        owner: ubuntu
+        group: ubuntu
+        force: yes
+      loop:
+        - src: "/mnt/data/spack-data/linux-ubuntu22.04-skylake_avx512"
+          dest: "/home/ubuntu/.spack/linux-ubuntu22.04-skylake_avx512"
+        - src: "/mnt/data/spack-data/linux-ubuntu22.04-x86_64_v3"
+          dest: "/home/ubuntu/.spack/linux-ubuntu22.04-x86_64_v3"
+
+    - name: Install zlib as example package
+      shell: |
+        SPACK_USER_CONFIG_PATH=/home/ubuntu/.spack singularity run --bind /usr/bin/zsh --bind /mnt/data --bind /home/ubuntu/.spack:/home/ubuntu/.spack --bind /home/ubuntu/spack-repo:/home/ubuntu/spack-repo /home/ubuntu/spack.sif install zlib
+      become_user: ubuntu
+      args:
+        chdir: "/home/ubuntu"
+
+    - name: Display final completion message
+      debug:
+        msg: "Spack setup and zlib installation completed successfully!" 
+
+    # Step 3: Install auxiliary tools and setup r-spack-recipe-builder
+    - name: Install uv (Python package manager)
+      shell: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+      become_user: ubuntu
+      args:
+        chdir: "/home/ubuntu"
+
+    - name: Add uv to PATH in .zshrc
+      lineinfile:
+        path: "/home/ubuntu/.zshrc"
+        line: 'export PATH="$HOME/.local/bin:$PATH"'
+        create: yes
+      become_user: ubuntu
+
+    - name: Verify uv installation
+      shell: |
+        export PATH="$HOME/.local/bin:$PATH"
+        uv --version
+      become_user: ubuntu
+      args:
+        chdir: "/home/ubuntu"
+
+    - name: Install Go
+      apt:
+        name: golang-go
+        state: present
+
+    - name: Check if r-spack-recipe-builder repository exists
+      stat:
+        path: "/home/ubuntu/r-spack-recipe-builder"
+      register: recipe_builder_repo
+
+    - name: Clone r-spack-recipe-builder repository
+      git:
+        repo: "https://github.com/wtsi-hgi/r-spack-recipe-builder"
+        dest: "/home/ubuntu/r-spack-recipe-builder"
+        version: HEAD
+      become_user: ubuntu
+      when: not recipe_builder_repo.stat.exists
+
+    - name: Build Go application in pyPIMD folder
+      shell: |
+        cd /home/ubuntu/r-spack-recipe-builder/pyPIMD
+        go build main.go
+      become_user: ubuntu
+
+    - name: Initialize uv project in r-spack-recipe-builder
+      shell: |
+        export PATH="$HOME/.local/bin:$PATH"
+        cd /home/ubuntu/r-spack-recipe-builder
+        uv init --python 3.12 || echo "uv already initialised"
+      become_user: ubuntu
+
+    - name: Add dependencies from requirements.txt using uv
+      shell: |
+        export PATH="$HOME/.local/bin:$PATH"
+        cd /home/ubuntu/r-spack-recipe-builder
+        if [ -f requirements.txt ]; then
+          uv add -r requirements.txt
+        fi
+      become_user: ubuntu
+
+    - name: create an executable for spack
+      shell: |
+        cat > ~/.local/bin/spack << 'EOF'
+        #!/bin/zsh
+        singularity run --bind /usr/bin/zsh --bind /mnt/data /home/ubuntu/spack.sif "$@"
+        EOF
+        chmod +x ~/.local/bin/spack
+      become_user: ubuntu
+
+    - name: Display stage 3 completion message
+      debug:
+        msg: "Stage 3 completed successfully! Installed uv, Go, cloned r-spack-recipe-builder, built the Go application, and set up uv project with dependencies." 

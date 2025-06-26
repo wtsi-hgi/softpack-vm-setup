@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Secret files
+.env
+*openrc.sh
+.ip
+
+# OpenStack rc file
+# Virtual environments
+.venv
+
+# vscode
+.vscode/
