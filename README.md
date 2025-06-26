@@ -16,8 +16,8 @@ This repository contains scripts and configurations for automating the creation 
 
 ```bash
 # Clone the repository
-git clone https://gitlab.internal.sanger.ac.uk/eh19/vm-creation.git
-cd vm-creation
+git clone https://github.com/wtsi-hgi/softpack-vm-setup.git
+cd softpack-vm-setup
 
 # Initialize the project (creates .env file and installs dependencies)
 make init
