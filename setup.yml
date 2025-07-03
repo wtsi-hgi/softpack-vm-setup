@@ -271,6 +271,7 @@
       shell: |
         cd /home/ubuntu/r-spack-recipe-builder/pyPIMD
         go build main.go
+        mv main pypi
       become_user: ubuntu
 
     - name: Initialize uv project in r-spack-recipe-builder
