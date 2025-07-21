@@ -73,4 +73,8 @@ undeploy: openstack-check
 	@echo "Undeploying VM..."
 	bash deploy/undeploy.sh
 
+mcp: deploy
+	@echo "Running MCP..."
+	ansible-playbook -i inventory.ini mcp.yml
+
 all: init deploy

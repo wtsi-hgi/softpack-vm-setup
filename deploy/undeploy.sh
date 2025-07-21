@@ -14,6 +14,9 @@ VOLUME_SIZE=${VOLUME_SIZE:-0}
 KEY_NAME=${KEY_NAME:-"${INSTANCE_NAME}-key"}
 KEY_PATH=${KEY_PATH:-"$HOME/.ssh/id_${INSTANCE_NAME}"}
 
+# Host configuration - derive from INSTANCE_NAME if not specified
+DEPLOY_HOST=${DEPLOY_HOST:-"${INSTANCE_NAME}.hgi.sanger.ac.uk"}
+
 # OpenStack credentials and configuration
 source "$OPENSTACK_RC_PATH"
 

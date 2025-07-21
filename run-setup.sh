@@ -29,7 +29,18 @@ EOF
     echo "SSH config added successfully!"
 else
     echo "Updating SSH config hostname for spb to $DEPLOY_IP..."
+    # Update HostName
     sed -i "/^Host spb$/,/^Host / s/^[[:space:]]*HostName[[:space:]].*/    HostName $DEPLOY_IP/" ~/.ssh/config
+    
+    # Check if IdentityFile exists in the spb block
+    if grep -A 10 "^Host spb$" ~/.ssh/config | grep -q "IdentityFile"; then
+        # Update existing IdentityFile
+        sed -i "/^Host spb$/,/^Host / s|^[[:space:]]*IdentityFile[[:space:]].*|    IdentityFile ~/.ssh/id_${INSTANCE_NAME}|" ~/.ssh/config
+    else
+        # Add IdentityFile after User line
+        sed -i "/^Host spb$/,/^Host / s/^[[:space:]]*User[[:space:]].*/    User ubuntu\n    IdentityFile ~/.ssh/id_${INSTANCE_NAME}/" ~/.ssh/config
+    fi
+    
     echo "SSH config hostname updated successfully!"
 fi
 

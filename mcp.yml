@@ -1,0 +1,91 @@
+---
+- name: Setup MCP on remote host
+  hosts: remote
+  vars:
+    mcp_repo: "https://github.com/wtsi-hgi/softpack-mcp.git"
+    mcp_dir: "/home/ubuntu/work/softpack-mcp"
+    git_credentials_path: "/opt/git-credentials"
+
+  tasks:
+    - name: Clone softpack-mcp repository
+      git:
+        repo: "{{ mcp_repo }}"
+        dest: "{{ mcp_dir }}"
+        force: yes
+      register: git_clone
+
+    - name: Change to MCP directory
+      file:
+        path: "{{ mcp_dir }}"
+        state: directory
+
+    - name: Run make init
+      command: make init
+      args:
+        chdir: "{{ mcp_dir }}"
+      register: make_init_result
+      failed_when: false
+
+    - name: Display make init output
+      debug:
+        var: make_init_result.stdout_lines
+      when: make_init_result.stdout_lines is defined
+
+    - name: Display make init errors
+      debug:
+        var: make_init_result.stderr_lines
+      when: make_init_result.stderr_lines is defined
+
+    - name: Ensure git credentials directory exists
+      become: yes
+      file:
+        path: "{{ git_credentials_path }}"
+        state: directory
+        mode: '0700'
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Check if git-credentials file exists
+      stat:
+        path: "{{ git_credentials_path }}/git-credentials"
+      register: git_credentials_file
+
+    - name: Fail if git-credentials file does not exist
+      fail:
+        msg: "git-credentials file not found at {{ git_credentials_path }}/git-credentials"
+      when: not git_credentials_file.stat.exists
+
+    - name: Get instance name from environment
+      shell: grep '^INSTANCE_NAME=' /home/ubuntu/work/setup-softpack-vm/.env | cut -d'=' -f2 | tr -d '"' | tr -d "'"
+      register: instance_name_result
+      delegate_to: localhost
+      run_once: true
+
+    - name: Set instance name fact
+      set_fact:
+        instance_name: "{{ instance_name_result.stdout }}"
+
+    - name: Replace API_BASE_URL in softpack-mcp .env file
+      replace:
+        path: "{{ mcp_dir }}/.env"
+        regexp: '^API_BASE_URL=.*'
+        replace: 'API_BASE_URL=http://{{ instance_name }}.hgi.sanger.ac.uk:8000'
+      when: instance_name is defined and instance_name != ""
+      ignore_errors: yes
+
+    - name: Run make svc-install
+      command: make svc-install
+      args:
+        chdir: "{{ mcp_dir }}"
+      register: make_svc_install_result
+      failed_when: false
+
+    - name: Display make svc-install output
+      debug:
+        var: make_svc_install_result.stdout_lines
+      when: make_svc_install_result.stdout_lines is defined
+
+    - name: Display make svc-install errors
+      debug:
+        var: make_svc_install_result.stderr_lines
+      when: make_svc_install_result.stderr_lines is defined 

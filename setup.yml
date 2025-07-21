@@ -12,6 +12,12 @@
         update_cache: yes
         cache_valid_time: 3600
 
+    - name: Stop unattended-upgrades to prevent package lock conflicts
+      systemd:
+        name: unattended-upgrades
+        state: stopped
+      ignore_errors: yes
+
     - name: Install zsh
       apt:
         name: zsh
@@ -115,10 +121,18 @@
         group: ubuntu
         recurse: yes
 
-    - name: Configure Git global settings with GitHub token
+    - name: Ensure /opt/git-credentials directory exists
+      file:
+        path: /opt/git-credentials
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0700'
+
+    - name: Configure Git global settings with GitHub token (custom credentials file)
       shell: |
-        git config --global credential.helper store
-        echo "https://{{ github_token }}:x-oauth-basic@github.com" > ~/.git-credentials
+        git config --global credential.helper "store --file=/opt/git-credentials/git-credentials"
+        echo "https://{{ github_token }}:x-oauth-basic@github.com" > /opt/git-credentials/git-credentials
       become_user: ubuntu
       when: github_token != ""
 
@@ -254,6 +268,8 @@
       apt:
         name: golang-go
         state: present
+      async: 300
+      poll: 10
 
     - name: Check if r-spack-recipe-builder repository exists
       stat:

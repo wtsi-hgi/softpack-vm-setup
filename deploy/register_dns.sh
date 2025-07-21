@@ -4,6 +4,9 @@ set -a
 source .env
 set +a
 
+# Set default values if not provided
+DEPLOY_HOST=${DEPLOY_HOST:-"${INSTANCE_NAME}.hgi.sanger.ac.uk"}
+
 CONTENT_TYPE="Content-type: application/json"
 CURL='/usr/bin/curl -k1 -X POST -d @-'
 WAPI_URI="https://infoblox-gm.internal.sanger.ac.uk/wapi/v2.3.1/request"

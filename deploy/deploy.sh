@@ -15,6 +15,9 @@ VOLUME_MOUNT=${VOLUME_MOUNT:-"/mnt/data"}
 KEY_NAME=${KEY_NAME:-"${INSTANCE_NAME}-key"}
 KEY_PATH=${KEY_PATH:-"$HOME/.ssh/id_${INSTANCE_NAME}"}
 
+# Host configuration - derive from INSTANCE_NAME if not specified
+DEPLOY_HOST=${DEPLOY_HOST:-"${INSTANCE_NAME}.hgi.sanger.ac.uk"}
+
 # Check if volume creation should be skipped (VOLUME_SIZE=0)
 SKIP_VOLUME=false
 if [ "${VOLUME_SIZE}" -eq 0 ]; then
