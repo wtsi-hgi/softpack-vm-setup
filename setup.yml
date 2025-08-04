@@ -114,13 +114,6 @@
         msg: "Setup completed successfully!"
 
     # Step 2: Setup spack repositories and configuration
-    - name: Ensure ubuntu home directory ownership
-      file:
-        path: /home/ubuntu
-        owner: ubuntu
-        group: ubuntu
-        recurse: yes
-
     - name: Ensure /opt/git-credentials directory exists
       file:
         path: /opt/git-credentials
@@ -242,6 +235,13 @@
         msg: "Spack setup and zlib installation completed successfully!" 
 
     # Step 3: Install auxiliary tools and setup r-spack-recipe-builder
+    - name: Install build dependencies for Python packages
+      apt:
+        name: 
+          - libbz2-dev
+          - liblzma-dev
+        state: present
+
     - name: Install uv (Python package manager)
       shell: |
         curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -298,20 +298,18 @@
         uv init --python 3.12 || echo "uv already initialised"
       become_user: ubuntu
 
-    - name: Add dependencies from requirements.txt using uv
+    - name: Sync dependencies using uv
       shell: |
         export PATH="$HOME/.local/bin:$PATH"
         cd /home/ubuntu/r-spack-recipe-builder
-        if [ -f requirements.txt ]; then
-          uv add -r requirements.txt
-        fi
+        uv sync
       become_user: ubuntu
 
     - name: create an executable for spack
       shell: |
         cat > ~/.local/bin/spack << 'EOF'
         #!/bin/zsh
-        singularity run --bind /usr/bin/zsh --bind /mnt/data /home/ubuntu/spack.sif "$@"
+        /usr/bin/singularity run --bind /usr/bin/zsh --bind /mnt/data /home/ubuntu/spack.sif "$@"
         EOF
         chmod +x ~/.local/bin/spack
       become_user: ubuntu
