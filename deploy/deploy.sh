@@ -52,7 +52,7 @@ if openstack server show "$INSTANCE_NAME" &>/dev/null; then
         echo "Keypair '$KEY_NAME' already exists in OpenStack."
         
         echo "Testing SSH connection with local key..."
-        if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -i "$KEY_PATH" ubuntu@"$FLOATING_IP" 'exit' &>/dev/null; then
+        if ! ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ConnectTimeout=5 -i "$KEY_PATH" ubuntu@"$FLOATING_IP" 'exit' &>/dev/null; then
             echo "ERROR: Cannot connect to existing instance with local SSH key."
             echo "You need the original private key that was used for initial deployment."
             echo "Alternatively, you can deploy to a new instance by changing INSTANCE_NAME in your .env file."
@@ -123,7 +123,7 @@ fi
 
 # Wait for SSH to become available
 echo "Waiting for SSH to become available..."
-until ssh -o StrictHostKeyChecking=no -i "$KEY_PATH" ubuntu@"$FLOATING_IP" 'exit'; do
+until ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i "$KEY_PATH" ubuntu@"$FLOATING_IP" 'exit'; do
     sleep 5
 done
 
@@ -169,7 +169,7 @@ if [ "$SKIP_VOLUME" = false ]; then
 
     # Configure volume on the VM
     echo "Configuring volume on the VM..."
-    ssh -o StrictHostKeyChecking=no -i "$KEY_PATH" ubuntu@"$FLOATING_IP" << EOF
+ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i "$KEY_PATH" ubuntu@"$FLOATING_IP" << EOF
         set -e
         echo "Checking for attached volume..."
         

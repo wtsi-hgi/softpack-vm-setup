@@ -101,4 +101,21 @@
     - name: Display make svc-install errors
       debug:
         var: make_svc_install_result.stderr_lines
-      when: make_svc_install_result.stderr_lines is defined 
+      when: make_svc_install_result.stderr_lines is defined
+
+    - name: Run make svc-restart
+      command: make svc-restart
+      args:
+        chdir: "{{ mcp_dir }}"
+      register: make_svc_restart_result
+      failed_when: false
+
+    - name: Display make svc-restart output
+      debug:
+        var: make_svc_restart_result.stdout_lines
+      when: make_svc_restart_result.stdout_lines is defined
+
+    - name: Display make svc-restart errors
+      debug:
+        var: make_svc_restart_result.stderr_lines
+      when: make_svc_restart_result.stderr_lines is defined

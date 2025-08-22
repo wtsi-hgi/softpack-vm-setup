@@ -76,7 +76,7 @@
               
               # Navigate to the spack directory and pull the latest changes
               cd "$HOME/work/spack-packages" || return
-              git pull
+              git checkout 78f95ff38d591cbe956a726f4a93f57d21840f86
               
               # Ensure the destination directory exists
               mkdir -p "$dest_dir"
@@ -122,18 +122,18 @@
         group: ubuntu
         mode: '0700'
 
-    - name: Configure Git global settings with GitHub token (custom credentials file)
+    - name: Configure Git system settings with GitHub token (custom credentials file)
       shell: |
-        git config --global credential.helper "store --file=/opt/git-credentials/git-credentials"
+        git config --system credential.helper "store --file=/opt/git-credentials/git-credentials"
         echo "https://{{ github_token }}:x-oauth-basic@github.com" > /opt/git-credentials/git-credentials
-      become_user: ubuntu
+      become_user: root
       when: github_token != ""
 
-    - name: Set Git global user configuration
+    - name: Set Git system user configuration
       shell: |
-        git config --global user.name "mercury"
-        git config --global user.email "mercury@sanger.ac.uk"
-      become_user: ubuntu
+        git config --system user.name "mercury"
+        git config --system user.email "mercury@sanger.ac.uk"
+      become_user: root
       when: github_token != ""
 
     - name: Create work directory
@@ -156,18 +156,13 @@
       become_user: ubuntu
       when: not spack_packages_repo.stat.exists
 
-    - name: Check if spack-repo repository exists
-      stat:
-        path: "/home/ubuntu/spack-repo"
-      register: spack_repo
-
-    - name: Clone spack-repo repository
+    - name: Clone or update spack-repo repository
       git:
         repo: "https://github.com/wtsi-hgi/spack-repo"
         dest: "/home/ubuntu/spack-repo"
         version: HEAD
+        force: yes
       become_user: ubuntu
-      when: not spack_repo.stat.exists
 
     - name: Create .spack directory
       file:
@@ -271,18 +266,13 @@
       async: 300
       poll: 10
 
-    - name: Check if r-spack-recipe-builder repository exists
-      stat:
-        path: "/home/ubuntu/r-spack-recipe-builder"
-      register: recipe_builder_repo
-
-    - name: Clone r-spack-recipe-builder repository
+    - name: Clone or update r-spack-recipe-builder repository
       git:
         repo: "https://github.com/wtsi-hgi/r-spack-recipe-builder"
         dest: "/home/ubuntu/r-spack-recipe-builder"
         version: HEAD
+        force: yes
       become_user: ubuntu
-      when: not recipe_builder_repo.stat.exists
 
     - name: Build Go application in pyPIMD folder
       shell: |

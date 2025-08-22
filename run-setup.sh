@@ -24,6 +24,7 @@ Host spb
     HostName $DEPLOY_IP
     User ubuntu
     IdentityFile ~/.ssh/id_${INSTANCE_NAME}
+    IdentitiesOnly yes
 EOF
     chmod 600 ~/.ssh/config
     echo "SSH config added successfully!"
@@ -39,6 +40,18 @@ else
     else
         # Add IdentityFile after User line
         sed -i "/^Host spb$/,/^Host / s/^[[:space:]]*User[[:space:]].*/    User ubuntu\n    IdentityFile ~/.ssh/id_${INSTANCE_NAME}/" ~/.ssh/config
+    fi
+    
+    # Ensure IdentitiesOnly is set to yes
+    if grep -A 10 "^Host spb$" ~/.ssh/config | grep -q "IdentitiesOnly"; then
+        sed -i "/^Host spb$/,/^Host / s/^[[:space:]]*IdentitiesOnly[[:space:]].*/    IdentitiesOnly yes/" ~/.ssh/config
+    else
+        # Prefer to place after IdentityFile if it exists, otherwise after User
+        if grep -A 10 "^Host spb$" ~/.ssh/config | grep -q "IdentityFile"; then
+            sed -i "/^Host spb$/,/^Host / s|^[[:space:]]*IdentityFile[[:space:]].*|&\n    IdentitiesOnly yes|" ~/.ssh/config
+        else
+            sed -i "/^Host spb$/,/^Host / s/^[[:space:]]*User[[:space:]].*/&\n    IdentitiesOnly yes/" ~/.ssh/config
+        fi
     fi
     
     echo "SSH config hostname updated successfully!"
